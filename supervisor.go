@@ -226,7 +226,7 @@ func New(name string, spec Spec) (s *Supervisor) {
 			s.log("Exiting backoff state.")
 		}
 	}
-
+	addSupervisor(s)
 	return
 }
 
@@ -510,11 +510,13 @@ func (s *Supervisor) stopSupervisor() {
 			for _, namedService := range s.servicesShuttingDown {
 				s.logBadStop(s, namedService.Service, namedService.name)
 			}
+			removeSupervisor(s)
 			return
 		}
 	}
 
 	close(s.liveness)
+	removeSupervisor(s)
 	return
 }
 
@@ -556,7 +558,6 @@ func (s *Supervisor) Services() []Service {
 
 	if s.sendControl(ls) {
 		return <-ls.c
-	} else {
-		return nil
 	}
+	return nil
 }
