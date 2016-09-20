@@ -39,10 +39,21 @@ func TestTheHappyCase(t *testing.T) {
 	service.Stop()
 	<-service.started
 
+	svc := FindService("B")
+	if svc == nil {
+		t.Errorf("Expected to find service\n")
+	}
+
 	// And it is shut down when we stop the supervisor
 	service.take <- UseStopChan
 	s.Stop()
 	<-service.stop
+
+	svc = FindService("B")
+	if svc != nil {
+		t.Errorf("Expected to find service\n")
+	}
+
 }
 
 // Test that adding to a running supervisor does indeed start the service.
@@ -546,7 +557,7 @@ func TestEverMultistarted(t *testing.T) {
 // A test service that can be induced to fail, panic, or hang on demand.
 func NewService(name string) *FailableService {
 	return &FailableService{name, make(chan bool), make(chan int),
-		make(chan bool), make(chan bool), make(chan bool), 0}
+		make(chan bool), make(chan bool), make(chan bool), 0, 0}
 }
 
 type FailableService struct {
@@ -557,6 +568,7 @@ type FailableService struct {
 	release  chan bool
 	stop     chan bool
 	existing int
+	state    int
 }
 
 func (s *FailableService) Serve() {
@@ -609,6 +621,10 @@ func (s *FailableService) Stop() {
 	s.shutdown <- true
 }
 
+func (s *FailableService) State() int {
+	return s.state
+}
+
 type NowFeeder struct {
 	values []time.Time
 	getter func() time.Time
@@ -618,8 +634,9 @@ type NowFeeder struct {
 // This is used to test serviceName; it's a service without a Stringer.
 type BarelyService struct{}
 
-func (bs *BarelyService) Serve() {}
-func (bs *BarelyService) Stop()  {}
+func (bs *BarelyService) Serve()     {}
+func (bs *BarelyService) Stop()      {}
+func (bs *BarelyService) State() int { return 0 }
 
 func NewNowFeeder() (nf *NowFeeder) {
 	nf = new(NowFeeder)
@@ -652,4 +669,91 @@ func panics(doesItPanic func()) (panics bool) {
 	doesItPanic()
 
 	return
+}
+
+type WaitableService struct {
+	name              string
+	shutdown          chan bool
+	state             int
+	delay             time.Duration
+	servicesToWaitFor map[string]bool
+	successChannel    chan bool
+}
+
+func (s *WaitableService) Serve() {
+	defer func() { /*log.Printf("Service %s returning\n", s)*/ }()
+	s.state = ServicePaused
+	if len(s.servicesToWaitFor) > 0 {
+		s.successChannel <- WaitForServices(s.servicesToWaitFor, time.Duration(10*time.Second))
+	}
+	s.shutdown = make(chan bool)
+	time.Sleep(s.delay)
+	for {
+		s.state = ServiceNormal
+		select {
+		case <-s.shutdown:
+			s.state = ServiceNotRunning
+			return
+		}
+	}
+}
+
+func (s *WaitableService) Stop() {
+	s.shutdown <- true
+}
+
+func (s *WaitableService) State() int {
+	return s.state
+}
+
+func (s *WaitableService) String() string {
+	return s.name
+}
+
+// Tests one service awaiting for two others to start
+func TestWaitForServices(t *testing.T) {
+	t.Parallel()
+
+	s := NewSimple("Supervisor")
+
+	blockingServiceA := &WaitableService{name: "BS_A", delay: time.Duration(2 * time.Second)}
+	s.Add(blockingServiceA)
+	blockingServiceB := &WaitableService{name: "BS_B", delay: time.Duration(2001 * time.Millisecond)}
+	s.Add(blockingServiceB)
+	successChannel := make(chan bool)
+	serviceThatsWaiting := &WaitableService{name: "Waiting Service",
+		servicesToWaitFor: map[string]bool{"BS_A": true, "BS_B": true},
+		successChannel:    successChannel}
+	s.Add(serviceThatsWaiting)
+
+	go s.Serve()
+	if <-successChannel == false {
+		t.Fail()
+	}
+	s.Stop()
+}
+
+// Tests one service awaiting for two others in different supervisors
+func TestWaitForServicesInDifferentSupervisors(t *testing.T) {
+	t.Parallel()
+
+	s1 := NewSimple("Supervisor")
+	s2 := NewSimple("SubSupervisor")
+	s1.Add(s2)
+
+	blockingServiceA := &WaitableService{name: "BS_A", delay: time.Duration(3 * time.Second)}
+	s1.Add(blockingServiceA)
+	blockingServiceB := &WaitableService{name: "BS_B", delay: time.Duration(1 * time.Second)}
+	s2.Add(blockingServiceB)
+	successChannel := make(chan bool)
+	serviceThatsWaiting := &WaitableService{name: "Waiting Service",
+		servicesToWaitFor: map[string]bool{"BS_A": true, "BS_B": true},
+		successChannel:    successChannel}
+	s2.Add(serviceThatsWaiting)
+
+	go s1.Serve()
+	if <-successChannel == false {
+		t.Fail()
+	}
+	s1.Stop()
 }
