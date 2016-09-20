@@ -48,6 +48,11 @@ properly stopped in the future. Until the service is fully stopped,
 both the service and the spawned goroutine trying to stop it will be
 "leaked".
 
+State Method
+
+This method (added in the NimbleIndustry fork) adds the ability to
+query the lifecycle of a service.
+
 Stringer Interface
 
 When a Service is added to a Supervisor, the Supervisor will create a
@@ -62,4 +67,14 @@ fmt.Sprintf("%#v") will be used.
 type Service interface {
 	Serve()
 	Stop()
+	State() int
 }
+
+const (
+	// ServiceNotRunning indicates that the service is initializing or waiting on other services
+	ServiceNotRunning = iota
+	// ServiceNormal indicates that the service is running normally
+	ServiceNormal
+	// ServicePaused indicates that the service has been paused, most likely due to an error
+	ServicePaused
+)

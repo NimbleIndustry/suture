@@ -395,6 +395,12 @@ func (s *Supervisor) Serve() {
 	}
 }
 
+// State returns the stored state of the supervisor.
+// See ServiceNotRunning, ServiceNormal, ServicePaused
+func (s *Supervisor) State() int {
+	return int(s.state)
+}
+
 func (s *Supervisor) handleFailedService(id serviceID, err interface{}, stacktrace []byte) {
 	now := s.getNow()
 
