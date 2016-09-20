@@ -1,3 +1,13 @@
+Suture (the NimbleIndustry Fork)
+======
+
+This fork adds *state* along with Service Lookup and Waitfor utilities to Suture. As the concept
+of _state_ was something [Jeremy Bowers](http://jerf.org) specifically eshewed in his [essay](http://www.jerf.org/iri/post/2930) 
+describing Suture, the likelihood of this fork getting merged back to the his repo is highly unlikely.
+
+The [NimbleIndustry](http://nimbleindustry.com) system uses the service architecture that Suture provides to orchestrate
+and manage the myriad of services comprise our system. Suture is definitely the master of our (internal) services orchestration.
+
 Suture
 ======
 
