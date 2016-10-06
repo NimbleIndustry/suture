@@ -51,20 +51,27 @@ func FindService(id string) Service {
 // services are not found in normal state before the time period, the
 // function returns false.
 func WaitForServices(services map[string]bool, waitDuration time.Duration) bool {
+	if services == nil || len(services) == 0 {
+		return true
+	}
+	servicesCopy := make(map[string]bool, len(services))
+	for k := range services {
+		servicesCopy[k] = true
+	}
 	timeout := time.Now().Add(waitDuration)
 	for {
-		for key := range services {
+		for key := range servicesCopy {
 			service := FindService(key)
 			if service != nil && service.State() == ServiceNormal {
-				delete(services, key)
+				delete(servicesCopy, key)
 			}
 		}
-		if len(services) == 0 {
+		if len(servicesCopy) == 0 {
 			return true
 		}
 		if time.Now().Unix() > timeout.Unix() {
 			return false
 		}
-		time.Sleep(500 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond)
 	}
 }
