@@ -216,8 +216,11 @@ func New(name string, spec Spec) (s *Supervisor) {
 		} else {
 			errString = fmt.Sprintf("%#v", err)
 		}
-
-		s.log(fmt.Sprintf("%s: Failed service '%s' (%f failures of %f), restarting: %#v, error: %s, stacktrace: %s", supervisor.Name, serviceName, failures, threshold, restarting, errString, string(st)))
+		if len(st) > 0 && string(st) != "[unknown stack trace]" {
+			s.log(fmt.Sprintf("%s: Failed service '%s' (%d failures of %d), restarting: %#v, error: %s, stacktrace: %s", supervisor.Name, serviceName, int(failures), int(threshold), restarting, errString, string(st)))
+		} else {
+			s.log(fmt.Sprintf("%s: Failed service '%s' (%d failures of %d), restarting: %#v, error: %s", supervisor.Name, serviceName, int(failures), int(threshold), restarting, errString))
+		}
 	}
 	s.logBackoff = func(s *Supervisor, entering bool) {
 		if entering {
